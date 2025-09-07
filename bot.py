@@ -1,6 +1,7 @@
 import telebot
 from config import bot
 
+bot = telebot.TeleBot(bot)
 
 @bot.message_handler(commands=['start'])   #Ответ на команду start
 def handle_start(message):
