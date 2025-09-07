@@ -11,7 +11,7 @@ def handle_start(message):
 @bot.message_handler(commands=['help'])   #Ответ на команду help
 def handle_start(message):
     print(message)
-    bot.send_message(message.chat.id, "Список досупных команд: /start, /help, /info")
+    bot.send_message(message.chat.id, "Вот список досупных команд: /start, /help, /info")
 
 @bot.message_handler(commands=['info'])   #Ответ на команду info
 def handle_start(message):
