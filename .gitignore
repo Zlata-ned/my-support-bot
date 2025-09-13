@@ -1,4 +1,4 @@
 # created by virtualenv automatically
-config.py
+.env
 /venv/
 /.idea/

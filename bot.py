@@ -1,16 +1,16 @@
+import datetime
 import telebot
-from future.backports.datetime import datetime
-from config import bot
 import random
-#import os
-#from dotenv import load_dotenv
+import os
+from dotenv import load_dotenv
 
-#load_dotenv()
+load_dotenv()
 
-#bot = os.getenv("bot")
+bot_token = os.getenv("bot_token")
 
+bot = telebot.TeleBot(bot_token)
 joke = ['Приделали одноногому колесо и пошло поехало','-Блин! - сказал слон, наступив на колобка','Мало кто знает, что  после того, как Иван Грозный убил своего сына, он еще спалил дом и срубил дерево','Сын директора фабрики по изготовлению туалетной бумаги всегда в костюме мумии']
-bot = telebot.TeleBot(bot)
+
 
 @bot.message_handler(commands=['start'])   #Ответ на команду start
 def handle_start(message):
