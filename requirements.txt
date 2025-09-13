@@ -1,4 +1,2 @@
-telebot == 0.0.5
+pytelegrambotapi == 4.29.1
 python-dotenv == 1.0.1
-Datetime == 5.5
-ConvergentRandomChoice == 0.11
