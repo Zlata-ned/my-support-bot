@@ -36,6 +36,8 @@ class Database:
                     user_id INTEGER,
                     message_text TEXT,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    ai_response TEXT,
+                    model_used TEXT,
                     FOREIGN KEY (user_id) REFERENCES users (user_id)
                 )
                 ''')
@@ -127,3 +129,21 @@ class Database:
         except sqlite3.Error as e:
             logger.error(f"Ошибка при получении сообщений: {e}")
             return []
+
+    def add_ai_response(self, message_id, ai_response, model_used):
+        try:
+            conn = sqlite3.connect(self.db_name)
+            cursor = conn.cursor()
+
+            cursor.execute('''
+                UPDATE messages
+                SET ai_response = ?
+                WHERE id = ?
+                ''', (ai_response, model_used, message_id))
+            conn.commit()
+            conn.close()
+            return True
+
+        except Exception as e:
+            logger.error(f"Ошибка {e}")
+            return False

@@ -3,22 +3,27 @@ import telebot
 import random
 from config import bot_token, db_name
 from database import Database, logger
+from ai_service import ai_service
 
 bot = telebot.TeleBot(bot_token)
 db = Database(db_name)
+
+user_modes = {}
+
 
 joke = ['Приделали одноногому колесо и пошло поехало','-Блин! - сказал слон, наступив на колобка','Мало кто знает, что  после того, как Иван Грозный убил своего сына, он еще спалил дом и срубил дерево','Сын директора фабрики по изготовлению туалетной бумаги всегда в костюме мумии']
 
 @bot.message_handler(commands=['start'])   #Ответ на команду start
 def com_start(message):
     print(message)
+    user_modes[message.from_user.id] = "echo"
     db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
     bot.send_message(message.chat.id, "Привет! Чем я могу тебе помочь?")
 
 @bot.message_handler(commands=['help'])   #Ответ на команду help
 def com_help(message):
     print(message)
-    bot.send_message(message.chat.id, "🤖 Досупные команды: \n /start - Начать работу с ботом \n /history - показать последние 5 сообщений \n /stats - показывает статистику \n /help - Показать это сообщение\n /info - Информация о боте\n /time - Показать текущее время\n /joke - Рассказать шутку\n /weather - Информация о погоде\n /about - О создателе бота")
+    bot.send_message(message.chat.id, "🤖 Досупные команды: \n /start - Начать работу с ботом \n /smart - переключение бота на режим ИИ \n /echo - переключение бота на режим эхо \n /model_info - информация о модели \n /ai - вопрос ИИ \n /history - показать последние 5 сообщений \n /stats - показывает статистику \n /help - Показать это сообщение\n /info - Информация о боте\n /time - Показать текущее время\n /joke - Рассказать шутку\n /weather - Информация о погоде\n /about - О создателе бота")
 
 @bot.message_handler(commands=['info'])   #Ответ на команду info
 def com_info(message):
@@ -39,6 +44,31 @@ def com_stats(message):
     else:
         bot.send_message(message.chat.id,"Информация о вас не найдена")
 
+@bot.message_handler(commands=['ai'])   #Ответ на команду ai
+def com_ai(message):
+    print(message)
+    #user = message.from_user
+    question = message.text[4:].strip()
+    if not question:
+        bot.reply_to(message, "Вам нужно написать вопрос после команды /ai!")
+    ai_response = ai_service.get_response(question, message.from_user.first_name)
+    bot.reply_to(message, ai_response)
+
+@bot.message_handler(commands=['smart'])   #Ответ на команду smart
+def com_smart(message):
+    print(message)
+    user_modes[message.from_user.id] = "ai"
+
+@bot.message_handler(commands=['echo'])   #Ответ на команду echo
+def com_echo(message):
+    print(message)
+    user_modes[message.from_user.id] = "echo"
+
+@bot.message_handler(commands=['model_info'])   #Ответ на команду model_info
+def com_model_info(message):
+    print(message)
+    current_mode = user_modes.get(message.from_user.id, "echo")
+    bot.reply_to(message, "Информация о модели:\nМодель: DeepSeek Chat\nВаш режим: ИИ" if current_mode == 'ai' else 'Эхо')
 
 @bot.message_handler(commands=['joke']) #Ответ на команду joke
 def com_joke(message):
@@ -76,7 +106,12 @@ def com_about(message):
 def answer_message(message):
     if message.text[0] !="/":
         print(message)
-        bot.send_message(message.chat.id, message.text)
+        current_mode = user_modes.get(message.from_user.id, "echo")
+        if current_mode == "ai":
+            ai_response = ai_service.get_response(message.text, message.from_user.first_name)
+            bot.reply_to(message, ai_response)
+        else:
+            bot.send_message(message.chat.id, message.text)
         db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
 
     else:
