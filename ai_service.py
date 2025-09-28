@@ -22,7 +22,7 @@ class AIService:
                 temperature=0.7
             )
 
-            ai_response = response.choises[0].message.content
+            ai_response = response.choices[0].message.content
             return ai_response
         except Exception as e:
             logger.error(f"Ошибка!{e}")
