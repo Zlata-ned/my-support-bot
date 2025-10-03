@@ -137,7 +137,7 @@ class Database:
 
             cursor.execute('''
                 UPDATE messages
-                SET ai_response = ?
+                SET ai_response = ?, model_used = ?
                 WHERE id = ?
                 ''', (ai_response, model_used, message_id))
             conn.commit()

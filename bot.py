@@ -47,11 +47,19 @@ def com_stats(message):
 @bot.message_handler(commands=['ai'])   #Ответ на команду ai
 def com_ai(message):
     print(message)
-    #user = message.from_user
-    question = message.text[4:].strip()
-    if not question:
+    if len(message) <= 3:
         bot.reply_to(message, "Вам нужно написать вопрос после команды /ai!")
+        return
+    question = message.text[4:].strip()
+
     ai_response = ai_service.get_response(question, message.from_user.first_name)
+
+    message_id = db.add_ai_response(
+        message_id=message.from_user.id,
+        ai_response=ai_response,
+        model_used="deepseek-chat"
+
+    )
     bot.reply_to(message, ai_response)
 
 @bot.message_handler(commands=['smart'])   #Ответ на команду smart
@@ -109,6 +117,8 @@ def answer_message(message):
         current_mode = user_modes.get(message.from_user.id, "echo")
         if current_mode == "ai":
             ai_response = ai_service.get_response(message.text, message.from_user.first_name)
+            model_used="deepseek-chat"
+            db.add_ai_response(message.from_user.id, ai_response, model_used)
             bot.reply_to(message, ai_response)
         else:
             bot.send_message(message.chat.id, message.text)
