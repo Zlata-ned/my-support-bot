@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+from pyexpat.errors import messages
 
 
 logging.basicConfig(level=logging.INFO)
@@ -30,6 +31,7 @@ class Database:
                 ''')
 
                 # Таблица сообщений
+                cursor.execute("DROP TABLE IF EXISTS messages")
                 cursor.execute('''
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,6 +51,7 @@ class Database:
 
         except sqlite3.Error as e:
             logger.error(f"Ошибка!: {e}")
+
 
     def add_user(self, user_id, username, first_name):
         try:
