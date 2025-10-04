@@ -130,20 +130,20 @@ class Database:
             logger.error(f"Ошибка при получении сообщений: {e}")
             return []
 
-    def add_ai_response(self, message_id, ai_response, model_used):
+
+    def add_ai_response(self, user_id, ai_response=None, model_used=None):
         try:
             conn = sqlite3.connect(self.db_name)
             cursor = conn.cursor()
-
             cursor.execute('''
-                UPDATE messages
-                SET ai_response = ?, model_used = ?
-                WHERE id = ?
-                ''', (ai_response, model_used, message_id))
+            INSERT INTO messages (user_id, ai_response, model_used)
+            VALUES (?, ?, ?)
+            ''', (user_id, ai_response, model_used))
+            message_id=cursor.lastrowid
             conn.commit()
             conn.close()
-            return True
+            return message_id
 
         except Exception as e:
             logger.error(f"Ошибка {e}")
-            return False
+            return None
