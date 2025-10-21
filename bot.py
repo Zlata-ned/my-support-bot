@@ -3,7 +3,7 @@ import telebot
 import random
 from config import bot_token, db_name
 from database import Database, logger
-from ai_service import ai_service
+from ai_service import ai_manager
 
 bot = telebot.TeleBot(bot_token)
 db = Database(db_name)
@@ -23,12 +23,17 @@ def com_start(message):
 @bot.message_handler(commands=['help'])   #Ответ на команду help
 def com_help(message):
     print(message)
-    bot.send_message(message.chat.id, "🤖 Досупные команды: \n /start - Начать работу с ботом \n /smart - переключение бота на режим ИИ \n /echo - переключение бота на режим эхо \n /model_info - информация о модели \n /ai - вопрос ИИ \n /history - показать последние 5 сообщений \n /stats - показывает статистику \n /help - Показать это сообщение\n /info - Информация о боте\n /time - Показать текущее время\n /joke - Рассказать шутку\n /weather - Информация о погоде\n /about - О создателе бота")
+    bot.send_message(message.chat.id, "🤖 Досупные команды: \n /start - Начать работу с ботом \n /smart - переключение бота на режим ИИ \n /echo - переключение бота на режим эхо \n /model_info - информация о модели \n /switch [номер] - переключить модель \n /compare [вопрос] - сравнить ответы всех моделей \n /benchmark - запустить полный тест производительности \n /ai [вопрос] - вопрос ИИ \n /history - показать последние 5 сообщений \n /stats - показывает статистику \n /help - Показать это сообщение\n /info - Информация о боте\n /time - Показать текущее время\n /joke - Рассказать шутку\n /weather - Информация о погоде\n /about - О создателе бота")
 
 @bot.message_handler(commands=['info'])   #Ответ на команду info
 def com_info(message):
     print(message)
     bot.send_message(message.chat.id,"Привет! Этот бот работает как эхо. Ты можешь отправить мне любое сообщение, а я повторю его!💞")
+
+@bot.message_handler(commands=['models']) #Ответ на команду models
+def com_models(message):
+    print(message)
+    bot.send_message(message.chat.id, "🤖 Досупные модели: \n\n 1.DeepSeek Chat \n └─ Провайдер: DeepSeek \n └─ Скорость: Средняя \n └─ Стоимость: Платная \n\n 2.Llama 3.1 8B (Groq) \n └─ Провайдер: Groq \n └─ Скорость: Очень быстрая \n └─ Стоимость: Беслатная \n\n 3.Llama 3 8B (Together) \n └─ Провайдер: Groq \n └─ Скорость: Очень быстрая \n └─ Стоимость: Беслатная")
 
 @bot.message_handler(commands=['stats'])   #Ответ на команду stats
 def com_stats(message):
@@ -51,10 +56,19 @@ def com_ai(message):
         bot.reply_to(message, "Вам нужно написать вопрос после команды /ai!")
         return
     question = message.text[4:].strip()
-    if not(question):
+    if not question:
         bot.reply_to(message, "Вам нужно написать вопрос после команды /ai!")
         return
-    ai_response = ai_service.get_response(question, message.from_user.first_name)
+    ai_response = ai_manager.get_response(question, message.from_user.first_name)
+
+    if ai_response['success']:
+        bot.reply_to(message,
+                     f"{ai_response['response']}\n\n"
+                     f"Время: {ai_response['time']:.2f} сек\n\n"
+                     f"Модель: {ai_response['model']}"
+                     )
+    else:
+        bot.reply_to(message, ai_response)
 
     db.add_ai_response(
         user_id=message.from_user.id,
@@ -107,6 +121,127 @@ def com_weather(message):
     print(message)
     bot.send_message(message.chat.id, "К сожалению, я пока не умею показывать погоду, но скоро научусь! ⛅")
 
+@bot.message_handler(commands=['model_stats'])    #Ответ на команду model_stats
+def com_model_stats(message):
+    stats = db.get_model_comparison_stats(message.from_user.id)
+    if not stats:
+        bot.reply_to(message, "У вас пока нет статистики использования моделей")
+        return
+
+    response = "📊 Ваша статистика моделей:\n\n"
+    for stat in stats:
+        response += f"🤖 {stat['model']}:\n"
+        response += f"├─ Использовано: {stat['count']} раз\n"
+        response += f"├─ Среднее время: {stat['avg_time']:.2f} сек\n"
+        response += f"├─ Токенов: ~{stat['tokens']}\n"
+        response += f" └─ Успешность: {stat['success_rate']:.1f}%\n\n"
+
+    fastest = min(stats, key=lambda x: x['avg_time'])
+    most_used = max(stats, key=lambda x: x['count'])
+
+
+    response += f"Самая быстрая: {fastest['model']} ({fastest['avg_time']})"
+    response += f"Самая используемая: {most_used['model']} ({most_used['count']})"
+
+    bot.reply_to(message, response)
+
+@bot.message_handler(commands=['compare'])    #Ответ на команду compare
+def com_compare(message):
+    question = message.text[9:].strip()
+    if not question:
+        bot.reply_to(message, "Напиши вопрос после /compare")
+        return
+
+    status_msg = bot.reply_to(message, "⏳ Отправляю запрос всем моделям")
+
+    results = ai_manager.compare_all(question)
+
+    response = "Результаты сравнения:"
+    times = []
+
+    for i, (model_name, result) in enumerate(results.items(), 1):
+        response += f"{i}️⃣ {result['info']['name']}\n"
+        if result['success']:
+            response += f"{result['time']: .2f} сек\n"
+            response += f"{result['response'][:200]}...\n\n"
+            times.append((model_name, result['time']))
+
+        else:
+            response += f"{result['response']}\n\n"
+
+    if times:
+        fastest = min(times, key=lambda x: x[1])
+        response += f"\n Самая быстрая: {fastest[0]} ({fastest[1]:.2f} сек)"
+
+    bot.edit_message_text(response, message.chat.id, status_msg.message_id)
+
+@bot.message_handler(commands=['benchmark'])    #Ответ на команду benchmark
+def com_benchmark(message):
+    test_questions = [
+        "Объясни что такое Python",
+        "Расскажи короткую шутку",
+        "Реши: 15 * 23 = ?"
+    ]
+
+    status_msg = bot.reply_to(message, "🔬 Запускаю бенчмарк...")
+
+    all_results = {}
+
+    for question in test_questions:
+        results = ai_manager.compare_all(question)
+        for model_name, result in results.items():
+            if model_name not in all_results:
+                all_results[model_name] = []
+            if result['success']:
+                all_results[model_name].append(result['time'])
+
+    response = "Результаты бенчмарка:\n\n"
+
+    avg_times = {}
+    for model_name, times in all_results.items():
+        if times:
+            avg_time = sum(times) / len(times)
+            avg_times[model_name] = avg_time
+            response += f"{model_name}:\n"
+            response += f"Среднее время: {avg_time:.2f} сек\n\n"
+
+    if avg_times:
+        fastest = min(avg_times.items(), key=lambda x: x[1])
+        slowest = max(avg_times.items(), key=lambda x: x[1])
+
+        response += f"Самая быстрая: {fastest[0]} ({fastest[1]:.2f} сек) \n"
+        response += f"Самая медленная: {slowest[0]} ({slowest[1]:.2f} сек)"
+
+    bot.edit_message_text(response, message.chat.id, status_msg.message_id)
+
+@bot.message_handler(commands=['switch'])   #Ответ на команду about
+def com_switch(message):
+    try:
+        parts = message.text.split()
+        if len(parts) < 2:
+            bot.reply_to(message, "Укажите номер модели")
+            return
+
+        model_number = int(parts[1])
+        services = ai_manager.get_all_services()
+
+        if model_number < 1 or model_number > len(services):
+            bot.reply_to(message, f"Номер должен быть от 1 до {len(services)}")
+            return
+
+        service_name = services[model_number - 1]
+        success = ai_manager.switch_service(service_name)
+        if success:
+            info = ai_manager.get_service_info(service_name)
+            bot.reply_to(message, f"Переключено на: {info['name']}")
+        else:
+            bot.reply_to(message, "Ошибка переключения модели")
+
+    except ValueError:
+        bot.reply_to(message, "Укажите номер цифрой!")
+    except Exception as e:
+        bot.reply_to(message, f"Ошибка! {str(e)}")
+
 @bot.message_handler(commands=['about'])   #Ответ на команду about
 def com_about(message):
     print(message)
@@ -118,7 +253,7 @@ def answer_message(message):
         print(message)
         current_mode = user_modes.get(message.from_user.id, "echo")
         if current_mode == "ai":
-            ai_response = ai_service.get_response(message.text, message.from_user.first_name)
+            ai_response = ai_manager.get_response(message.text, message.from_user.first_name)
             db.add_ai_response(
                 user_id=message.from_user.id,
                 ai_response=ai_response,

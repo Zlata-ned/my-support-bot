@@ -150,3 +150,47 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка {e}")
             return None
+
+    def save_model_metrics(self, user_id, model_name, response_time, tokens_estimate, tokens_used, success):
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO model_stats
+                    (model_name, user_id, response_time, tokens_used, success)
+                    VALUES (?,?,?,?,?)
+                ''', (model_name, user_id, response_time, tokens_estimate, success, tokens_used))
+                conn.commit()
+                return True
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка сохранения метрик: {e}")
+            return False
+
+    def get_model_comparison_stats(self, user_id):
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    SELECT
+                        model_name,
+                        COUNT(*) as usage_count,
+                        AVG(response_time) as avg_time,
+                        SUM(tokens_used) as total_tokens,
+                        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success,
+                    FROM model_stats
+                    WHERE user_id = ?
+                    GROUP BY model_name
+                    ORDER BY usage_count DESC
+                ''', (user_id))
+
+                results = cursor.fetchall()
+                return [{
+                    'model': row[0],
+                    'count': row[1],
+                    'avg_time': row[2],
+                    'tokens': row[3],
+                    'success_rate': (row[4] / row[1]*100) if row[1] > 0 else 0
+                }for row in results]
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка получения статистики: {e}")
+            return []
