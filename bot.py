@@ -23,7 +23,7 @@ def com_start(message):
 @bot.message_handler(commands=['help'])   #Ответ на команду help
 def com_help(message):
     print(message)
-    bot.send_message(message.chat.id, "🤖 Досупные команды: \n /start - Начать работу с ботом \n /smart - переключение бота на режим ИИ \n /echo - переключение бота на режим эхо \n /model_info - информация о модели \n /switch [номер] - переключить модель \n /compare [вопрос] - сравнить ответы всех моделей \n /benchmark - запустить полный тест производительности \n /ai [вопрос] - вопрос ИИ \n /history - показать последние 5 сообщений \n /stats - показывает статистику \n /help - Показать это сообщение\n /info - Информация о боте\n /time - Показать текущее время\n /joke - Рассказать шутку\n /weather - Информация о погоде\n /about - О создателе бота")
+    bot.send_message(message.chat.id, "🤖 Досупные команды: \n /start - Начать работу с ботом \n /smart - переключение бота на режим ИИ \n /echo - переключение бота на режим эхо \n /model_info - информация о модели \n /switch [номер] - переключить модель \n /compare [вопрос] - сравнить ответы всех моделей \n /model_stats - показывает статистику использования моделей \n /benchmark - запустить полный тест производительности \n /ai [вопрос] - вопрос ИИ \n /history - показать последние 5 сообщений \n /stats - показывает статистику \n /help - Показать это сообщение\n /info - Информация о боте\n /time - Показать текущее время\n /joke - Рассказать шутку\n /weather - Информация о погоде\n /about - О создателе бота")
 
 @bot.message_handler(commands=['info'])   #Ответ на команду info
 def com_info(message):
@@ -63,7 +63,7 @@ def com_ai(message):
 
     if ai_response['success']:
         bot.reply_to(message,
-                     f"{ai_response['response']}\n\n"
+                     f"{ai_response['response'].choices[0].message.content}\n\n"
                      f"Время: {ai_response['time']:.2f} сек\n\n"
                      f"Модель: {ai_response['model']}"
                      )
@@ -72,16 +72,32 @@ def com_ai(message):
 
     db.add_ai_response(
         user_id=message.from_user.id,
-        ai_response=ai_response,
-        model_used="deepseek-chat"
+        ai_response=ai_response['response'].choices[0].message.content,
+        model_used=ai_response['model']
 
     )
-    bot.reply_to(message, ai_response)
+
+    db.save_model_metrics(
+        model_name=ai_response['model'],
+        user_id=message.from_user.id,
+        response_time=ai_response['time'],
+        success=ai_response['success'],
+        token_used=ai_response["response"].usage.total_tokens
+    )
 
 @bot.message_handler(commands=['smart'])   #Ответ на команду smart
 def com_smart(message):
     print(message)
     user_modes[message.from_user.id] = "ai"
+    ai_response = ai_manager.get_response
+
+    db.save_model_metrics(
+        model_name=ai_response['model'],
+        user_id=message.from_user.id,
+        response_time=ai_response['time'],
+        success=ai_response['success'],
+        token_used=ai_response.get('usage', {}).get('total_tokens', 0)
+    )
 
 @bot.message_handler(commands=['echo'])   #Ответ на команду echo
 def com_echo(message):
@@ -134,7 +150,7 @@ def com_model_stats(message):
         response += f"├─ Использовано: {stat['count']} раз\n"
         response += f"├─ Среднее время: {stat['avg_time']:.2f} сек\n"
         response += f"├─ Токенов: ~{stat['tokens']}\n"
-        response += f" └─ Успешность: {stat['success_rate']:.1f}%\n\n"
+        response += f"└─ Успешность: {stat['success_rate']:.1f}%\n\n"
 
     fastest = min(stats, key=lambda x: x['avg_time'])
     most_used = max(stats, key=lambda x: x['count'])
@@ -163,7 +179,6 @@ def com_compare(message):
         response += f"{i}️⃣ {result['info']['name']}\n"
         if result['success']:
             response += f"{result['time']: .2f} сек\n"
-            response += f"{result['response'][:200]}...\n\n"
             times.append((model_name, result['time']))
 
         else:
@@ -256,8 +271,8 @@ def answer_message(message):
             ai_response = ai_manager.get_response(message.text, message.from_user.first_name)
             db.add_ai_response(
                 user_id=message.from_user.id,
-                ai_response=ai_response,
-                model_used="deepseek-chat"
+                ai_response=ai_response['response'].choices[0].message.content,
+                model_used=ai_response['model']
 
             )
             bot.reply_to(message, ai_response)

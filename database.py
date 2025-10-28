@@ -34,7 +34,7 @@ class Database:
                 cursor.execute('''
                 CREATE TABLE IF NOT EXISTS messages (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
+                    user_id BIGINT,
                     message_text TEXT,
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     ai_response TEXT,
@@ -43,8 +43,20 @@ class Database:
                 )
                 ''')
 
+                #cursor.execute("DROP TABLE IF EXISTS model_stats")
+                cursor.execute('''
+                CREATE TABLE IF NOT EXISTS model_stats (
+                    model_name TEXT,
+                    user_id BIGINT,
+                    response_time REAL,
+                    token_used INTEGER,
+                    success INTEGER
+                )
+                ''')
+
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)')
+                cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_model_name ON model_stats(model_name)')
 
                 conn.commit()
 
@@ -150,15 +162,15 @@ class Database:
             logger.error(f"Ошибка {e}")
             return None
 
-    def save_model_metrics(self, user_id, model_name, response_time, tokens_estimate, tokens_used, success):
+    def save_model_metrics(self, user_id, model_name, response_time, token_used, success):
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT INTO model_stats
-                    (model_name, user_id, response_time, tokens_used, success)
+                    (model_name, user_id, response_time, token_used, success)
                     VALUES (?,?,?,?,?)
-                ''', (model_name, user_id, response_time, tokens_estimate, success, tokens_used))
+                ''', (model_name, user_id, response_time, token_used, success))
                 conn.commit()
                 return True
         except sqlite3.Error as e:
@@ -174,13 +186,13 @@ class Database:
                         model_name,
                         COUNT(*) as usage_count,
                         AVG(response_time) as avg_time,
-                        SUM(tokens_used) as total_tokens,
-                        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success,
+                        SUM(token_used) as total_tokens,
+                        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success
                     FROM model_stats
                     WHERE user_id = ?
                     GROUP BY model_name
                     ORDER BY usage_count DESC
-                ''', user_id)
+                ''', (user_id,))
 
                 results = cursor.fetchall()
                 return [{

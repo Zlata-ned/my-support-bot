@@ -31,7 +31,7 @@ class DeepSeekService(BaseAIService):
                 temperature=0.7
             )
 
-            ai_response = response.choices[0].message.content
+            ai_response = response
             return ai_response
         except Exception as e:
             logger.error(f"Ошибка!{e}")
@@ -63,7 +63,7 @@ class GroqService(BaseAIService):
                 temperature=0.7
             )
 
-            ai_response = response.choices[0].message.content
+            ai_response = response
             return ai_response
         except Exception as e:
             logger.error(f"Ошибка Groq!{e}")
@@ -95,7 +95,7 @@ class TogetherService(BaseAIService):
                 temperature=0.7
             )
 
-            ai_response = response.choices[0].message.content
+            ai_response = response
             return ai_response
         except Exception as e:
             logger.error(f"Ошибка Together!{e}")
