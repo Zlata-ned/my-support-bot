@@ -1,6 +1,5 @@
 import sqlite3
 import logging
-from pyexpat.errors import messages
 
 
 logging.basicConfig(level=logging.INFO)
@@ -181,7 +180,7 @@ class Database:
                     WHERE user_id = ?
                     GROUP BY model_name
                     ORDER BY usage_count DESC
-                ''', (user_id))
+                ''', user_id)
 
                 results = cursor.fetchall()
                 return [{

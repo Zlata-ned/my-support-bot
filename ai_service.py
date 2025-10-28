@@ -82,7 +82,7 @@ class TogetherService(BaseAIService):
             api_key = TOGETHER_API_KEY,
             base_url = "https://api.together.xyz/v1"
         )
-        self.model_name = "meta-llama/llama-3.1-8b-chat-hf"
+        self.model_name = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
     def get_response(self, user_message, user_name='Пользователь'):
         try:
             response = self.client.chat.completions.create(
