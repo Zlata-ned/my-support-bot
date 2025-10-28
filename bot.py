@@ -89,15 +89,7 @@ def com_ai(message):
 def com_smart(message):
     print(message)
     user_modes[message.from_user.id] = "ai"
-    ai_response = ai_manager.get_response
-
-    db.save_model_metrics(
-        model_name=ai_response['model'],
-        user_id=message.from_user.id,
-        response_time=ai_response['time'],
-        success=ai_response['success'],
-        token_used=ai_response.get('usage', {}).get('total_tokens', 0)
-    )
+    bot.reply_to(message, "Режим переключен на AI")
 
 @bot.message_handler(commands=['echo'])   #Ответ на команду echo
 def com_echo(message):
@@ -275,7 +267,15 @@ def answer_message(message):
                 model_used=ai_response['model']
 
             )
-            bot.reply_to(message, ai_response)
+
+            db.save_model_metrics(
+                model_name=ai_response['model'],
+                user_id=message.from_user.id,
+                response_time=ai_response['time'],
+                success=ai_response['success'],
+                token_used=ai_response["response"].usage.total_tokens
+            )
+            bot.reply_to(message, ai_response['response'].choices[0].message.content)
         else:
             bot.send_message(message.chat.id, message.text)
         db.add_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
