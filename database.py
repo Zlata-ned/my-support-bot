@@ -54,6 +54,18 @@ class Database:
                 )
                 ''')
 
+                #cursor.execute("DROP TABLE IF EXISTS documents")
+                cursor.execute('''
+                CREATE TABLE IF NOT EXISTS documents(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    filename TEXT,
+                    content TEXT,
+                    uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_id) REFERENCES users (user_id)
+                )
+                ''')
+
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)')
                 cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_model_name ON model_stats(model_name)')
@@ -205,3 +217,111 @@ class Database:
         except sqlite3.Error as e:
             logger.error(f"Ошибка получения статистики: {e}")
             return []
+
+    def add_document(self, user_id, filename, content):
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO documents (user_id, filename, content)
+                    VALUES (?,?,?)
+                ''', (user_id, filename, content))
+                conn.commit()
+                return cursor.lastrowid
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка добавления документа: {e}")
+            return  None
+
+    def get_user_documents(self, user_id):
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute('''
+                    SELECT filename, content, uploaded_at 
+                    FROM documents 
+                    WHERE user_id = ? 
+                    ORDER BY uploaded_at DESC
+                ''', (user_id,))
+
+                documents = cursor.fetchall()
+                return documents
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка получения документов: {e}")
+            return  None
+
+
+    def get_document_content(self, document_id, user_id=None):
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+
+                if user_id:
+                    cursor.execute('''
+                        SELECT filename, content, uploaded_at 
+                        FROM documents 
+                        WHERE id = ? AND user_id = ?
+                    ''', (document_id, user_id))
+                else:
+                    cursor.execute('''
+                        SELECT filename, content, uploaded_at 
+                        FROM documents 
+                        WHERE id = ?
+                    ''', (document_id,))
+
+                document = cursor.fetchone()
+
+                if document:
+                    return {
+                        'filename': document[0],
+                        'content': document[1],
+                        'uploaded_at': document[2]
+                    }
+                else:
+                    return None
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка получения данных из документа: {e}")
+            return  None
+
+    def search_in_documents(self, user_id, query):
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                query_words = query.split()
+                conditions = []
+                params = [user_id]
+
+                for word in query_words:
+                    if len(word) > 2:
+                        conditions.append("content LIKE ?")
+                        params.append(f'%{word}%')
+
+                if not conditions:
+                    return []
+
+                where_clause = " AND ".join(conditions)
+
+                cursor.execute(f'''
+                    SELECT id, filename, content, uploaded_at
+                    FROM documents 
+                    WHERE user_id = ? AND ({where_clause})
+                    ORDER BY ({" + ".join([f"(LENGTH(content) - LENGTH(REPLACE(LOWER(content), LOWER(?), ''))) / LENGTH(?)" for _ in conditions])}) DESC
+                ''', params * 2)
+
+                results = []
+                for row in cursor.fetchall():
+                    doc = {
+                        'id': row[0],
+                        'filename': row[1],
+                        'content': row[2],
+                        'uploaded_at': row[3]
+                    }
+                    results.append(doc)
+
+                return results
+
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка поиска в документах: {e}")
+            return []
+
+

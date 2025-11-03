@@ -4,6 +4,7 @@ import random
 from config import bot_token, db_name
 from database import Database, logger
 from ai_service import ai_manager
+from rag_service import rag_service
 
 bot = telebot.TeleBot(bot_token)
 db = Database(db_name)
@@ -128,6 +129,66 @@ def com_time(message):
 def com_weather(message):
     print(message)
     bot.send_message(message.chat.id, "К сожалению, я пока не умею показывать погоду, но скоро научусь! ⛅")
+
+rag_service.db = db
+@bot.message_handler(commands=['ask'])   #Ответ на команду ask
+def com_ask(message):
+    question = message.text[5:].strip()
+
+    if not question:
+        bot.reply_to(message, "Напиши вопрос после /ask")
+        return
+
+    docs = db.get_user_documents(message.from_user.id)
+    if not docs:
+        bot.reply_to(message, "❌ У вас нет загруженных документов. Загрузите .txt файл.")
+        return
+    status_msg = bot.reply_to(message, "🔍 Ищу информацию в ваших документах...")
+    relevant_chunks = rag_service.search_relevant_chunks(
+        message.from_user.id,
+        question
+    )
+    if not relevant_chunks:
+        bot.edit_message_text(
+            "❌ Не нашел релевантной информации в документах",
+            message.chat.id,
+            status_msg.message_id
+        )
+        return
+    result = rag_service.generate_answer_with_context(
+        ai_manager,
+        question,
+        relevant_chunks
+    )
+    if result and result['success']:
+        response_text = result['response'].choices[0].message.content
+        answer = f"{response_text}\n\n"
+        answer += "Источники:\n"
+        for chunk in relevant_chunks:
+            answer += f"• {chunk['filename']}\n"
+
+        bot.edit_message_text(answer, message.chat.id, status_msg.message_id)
+    else:
+        bot.edit_message_text(
+            "❌ Ошибка при генерации ответа",
+            message.chat.id,
+            status_msg.message_id
+        )
+
+@bot.message_handler(commands=['docs'])   #Ответ на команду docs
+def com_docs(message):
+    docs = db.get_user_documents(message.from_user.id)
+
+    if not docs:
+        bot.reply_to(message, "У вас пока нет загруженных документов")
+        return
+
+    response = "Ваши документы:\n\n"
+    for doc in docs:
+        response += f"{doc['id']}. {doc['filename']}\n"
+        response += f"└─ Загружен: {doc['uploaded_at']}\n\n"
+
+    bot.reply_to(message, response)
 
 @bot.message_handler(commands=['model_stats'])    #Ответ на команду model_stats
 def com_model_stats(message):
@@ -302,5 +363,36 @@ def photo_sticker(message):
 
     if message.sticker:
         bot.send_message(message.chat.id, 'Вы отправили стикер. Пока что я обрабатываю только текстовые сообщения 😕.')
+
+
+@bot.message_handler(content_types=['document'])
+def handle_document(message):
+    try:
+        file_info = bot.get_file(message.document.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+
+        if not message.document.file_name.endswith('.txt'):
+            bot.reply_to(message, "❌ Пока поддерживаются только .txt файлы")
+            return
+        content = downloaded_file.decode('utf-8')
+
+        doc_id = db.add_document(
+            user_id=message.from_user.id,
+            filename=message.document.file_name,
+            content=content
+        )
+
+        if doc_id:
+            bot.reply_to(message,
+                f"✅ Документ '{message.document.file_name}' загружен!\n"
+                f"📄 ID документа: {doc_id}\n"
+                f"Теперь я могу отвечать на вопросы по этому документу."
+            )
+        else:
+            bot.reply_to(message, "❌ Ошибка при сохранении документа")
+
+    except Exception as e:
+        logger.error(f"Ошибка обработки документа: {e}")
+        bot.reply_to(message, "❌ Ошибка при обработке файла")
 
 bot.polling(none_stop=True)
