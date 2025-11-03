@@ -164,8 +164,12 @@ def com_ask(message):
         response_text = result['response'].choices[0].message.content
         answer = f"{response_text}\n\n"
         answer += "Источники:\n"
-        for chunk in relevant_chunks:
-            answer += f"• {chunk['filename']}\n"
+        user_docs = db.get_user_documents(message.from_user.id)
+        doc_filenames = [doc['filename'] for doc in user_docs] if user_docs else []
+
+        if doc_filenames:
+            for filename in doc_filenames:
+                answer += f"• {filename}\n"
 
         bot.edit_message_text(answer, message.chat.id, status_msg.message_id)
     else:

@@ -32,18 +32,24 @@ class SimpleRAG:
 
                 })
         relevant_chunks.sort(key=lambda x: x['relevance'], reverse=True)
-
         return relevant_chunks[:max_results]
 
     def generate_answer_with_context(self, ai_manager, query, context_chunks):
         if not context_chunks:
             return None
 
-        context = "\n\n".join([
-            f"Из документа '{chunk['filename']}':\n{chunk['content']}"
-            for chunk in context_chunks
-        ])
-
+        if isinstance(context_chunks[0], str):
+            context = "\n\n".join([
+                f"Из документа:\n{chunk}"
+                for chunk in context_chunks
+            ])
+        elif isinstance(context_chunks[0], dict):
+            context = "\n\n".join([
+                f"Из документа '{chunk['filename']}':\n{chunk['content']}"
+                for chunk in context_chunks
+            ])
+        else:
+            return None
         prompt = f"""На основе следующей информации из документов ответь на вопрос.
 
         ДОКУМЕНТЫ:

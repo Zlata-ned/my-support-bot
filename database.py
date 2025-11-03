@@ -244,7 +244,13 @@ class Database:
                     ORDER BY uploaded_at DESC
                 ''', (user_id,))
 
-                documents = cursor.fetchall()
+                columns = [column[0] for column in cursor.description]
+                documents = []
+                for row in cursor.fetchall():
+                    document_dict = {}
+                    for i, value in enumerate(row):
+                        document_dict[columns[i]] = value
+                    documents.append(document_dict)
                 return documents
         except sqlite3.Error as e:
             logger.error(f"Ошибка получения документов: {e}")
