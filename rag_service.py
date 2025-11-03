@@ -23,11 +23,12 @@ class SimpleRAG:
                     if pos != -1:
                         start = max(0, pos - 100)
                         end = min(len(content), pos + len(word) + 100)
-                        return content[start:end]
+                        context = content[start:end]
+                        break
 
                 relevant_chunks.append({
                     'filename': doc['filename'],
-                    'content': content[:500],
+                    'content': context,
                     'relevance': matches
 
                 })

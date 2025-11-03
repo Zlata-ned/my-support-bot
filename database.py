@@ -238,7 +238,7 @@ class Database:
                 cursor = conn.cursor()
 
                 cursor.execute('''
-                    SELECT filename, content, uploaded_at 
+                    SELECT filename, content, uploaded_at, id
                     FROM documents 
                     WHERE user_id = ? 
                     ORDER BY uploaded_at DESC
